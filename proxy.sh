@@ -1,176 +1,162 @@
 #!/bin/bash
 
-#Install Python Virtualenv
-
+# Install Docker Engine on Ubuntu:
 sudo apt-get -y update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv 
+sudo apt-get -y install ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-#Create directory
+# Install Docker compose: 
+echo \
+  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get -y update
 
-mkdir /home/ubuntu/proxy_app && cd /home/ubuntu/proxy_app 
+# To install the latest version
+sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-#Create the virtual environment
+# Create a directory for the flask compose project:
+mkdir /home/ubuntu/proxy && cd /home/ubuntu/proxy 
 
-python3 -m venv venv
-
-#Activate the virtual environment
-
-source venv/bin/activate
-
-#Install Flask
-
-pip install Flask
-
-pip install flask-restful
-
-pip install ec2_metadata
-#Create of a simple Flask app:
-
-cat <<EOL > /home/ubuntu/proxy_app/proxy.py
-from ec2_metadata import ec2_metadata
-from flask import Flask
+# Create the proxy Flask app:
+cat <<EOL > /home/ubuntu/proxy/proxy.py
 import argparse
-import mysql.connector
 import random
+import mysql.connector
 from pythonping import ping
-from flask import jsonify, request
+from flask import Flask, jsonify, request
 
-from Setup_main import MASTER_PRIVATE_IP, PRIVATE_IP_SLAVE
 
 app = Flask(__name__)
 
-# Disabling the automatic sorting of JSON keys when generating JSON responses
-app.config["JSON_SORT_KEYS"] = False
+parser = argparse.ArgumentParser()
+parser.add_argument("master_private_dns", help="Master's priavte dns")
+parser.add_argument("--slaves_dns", nargs="+", help="List of private slaves dns")
+args = parser.parse_args()
 
+master_private_dns = args.master_private_dns
+slaves_dns = args.slaves_dns
 
-"""
-Direct endpoint that insert data into a given table 
-:param json: json data that contains query
-:return: Query output
-"""
-@app.route("/direct", methods=["POST"])
-def save():
-    request_data = request.get_json()
-    cnx = mysql_cnx(MASTER_PRIVATE_IP)
-    # Send query to the targeted server
-    insert(cnx, request_data["query"])
-    return jsonify(message="Item added successfully"), 201
-
-
-"""
-Direct endpoint that select data from a given table through master node
-:param json: json data that contains query
-:return: Query output
-"""
-@app.route("/direct", methods=["GET"])
-def direct_call():
-    request_data = request.get_json()
-    cnx = mysql_cnx(MASTER_PRIVATE_IP)
-    # Send query to the targeted server
-    result = select(cnx, request_data["query"])
-    return jsonify(server="master", ip=MASTER_PRIVATE_IP, result=result)
-
-
-"""
-Random endpoint that select data from a given table through slave nodes
-:param json: json data that contains query
-:return: Query output
-"""
-@app.route("/random", methods=["GET"])
-def random_call():
-    request_data = request.get_json()
-    # Retrieve query from data json
-    query = request_data["query"]
-    # Select a random slave ip from th given slaves list
-    random_target = random.choice(PRIVATE_IP_SLAVES)
-    cnx = mysql_cnx(random_target)
-    # Send query to the targeted server
-    result = select(cnx, query)
-    return jsonify(server="slave", ip=random_target, result=result)
-
-
-"""
-Random endpoint that select data from a given table through min ping time between cluster nodes
-:param json: json data that contains query
-:return: Query output
-"""
-@app.route("/custom", methods=["GET"])
-def custom_call():
-    request_data = request.get_json()
-    # Retrieve the min ping time and the node ip
-    best_cnx, ping_time = get_best_cnx(MASTER_PRIVATE_IP, PRIVATE_IP_SLAVES)
-    cnx = mysql_cnx(best_cnx)
-    # Send query to the targeted server
-    result = select(cnx, request_data["query"])
-    if best_cnx == MASTER_PRIVATE_IP:
-        server = "master"
-    else:
-        server = "slave"
-    return jsonify(server=server, ip=best_cnx, ping_time=ping_time, result=result)
-
-
-"""
-Function opens a connexion with cibling node 
-:parameter target_ip: Ip node to open connexion with
-:return: node connector
-"""
-def mysql_cnx(target_ip):
-    try:
-        # User proxy is used since we created a specific one for proxy. The database sakila will also be used
-        cnx = mysql.connector.connect(
-            user="proxy",
-            host=target_ip,
-            database="sakila",
-        )
-        print("Cnx established with the database")
+# Connect to mysql database
+def mysql_cnx(target_dns):
+    try :
+        cnx = mysql.connector.connect(user='root',
+                                    host=target_dns,
+                                    database='sakila')
+        print("Connected to database at: " + target_dns)
         return cnx
-    except Exception as ex:
-        print(f"Failed to connect to database due to {ex}")
+    except mysql.connector.Error as err:
+        print("Connection to database error: {}".format(err))
 
+# Find best connection target based on ping
+def best_cnx_target():
+    ping_responses = {}
+    ping_responses[master_private_dns] = ping(master_private_dns).rtt_avg_ms
+    for target_dns in slaves_dns:
+        ping_responses[target_dns] = ping(target_dns).rtt_avg_ms
 
-"""
-Function that execute given query (write or update) and save it
-:param mysql_cnx: databse connector
-:param query: insertion query
-:return: result of the query
-"""
+    best_cnx_target = min(ping_responses, key=ping_responses.get)
+    return best_cnx_target
+
+# Insert query
 def insert(mysql_cnx, query):
     cursor = mysql_cnx.cursor()
     cursor.execute(query)
     mysql_cnx.commit()
+    cursor.close()
 
-
-"""
-Function that execute given query and fetch existing items
-:param mysql_cnx: databse connector
-:param query: insertion query
-:return: query result
-"""
+# Select query
 def select(mysql_cnx, query):
     cursor = mysql_cnx.cursor()
     cursor.execute(query)
     result = cursor.fetchall()
+    cursor.close()
     return result
 
+# Redirect direct insert queries to the master instance
+@app.route("/direct", methods=["POST"])
+def direct_post():
+    request_data = request.get_json()
+    query = request_data['query']
+    cnx = mysql_cnx(master_private_dns)
+    insert(cnx, query)
+    cnx.close()
+    return jsonify(message="Query POST to master successfull"), 201
 
-"""
-Function that fetch the cluster node with less response time 
-:param master_ip: master private ip
-:param slaves_ip: list of slaves ip
-:return: node ip and ping time
-"""
-def get_best_cnx(master_ip, slaves_ip):
-    cnx_repsonses = {}
-    # Get manager (master) ping time
-    cnx_repsonses[master_ip] = ping(master_ip).rtt_avg_ms
+# Redirect direct select queries to the master instance
+@app.route("/direct", methods=["GET"])
+def direct_get():
+    request_data = request.get_json()
+    query = request_data['query']
+    cnx = mysql_cnx(master_private_dns)
+    result = select(cnx, query)
+    cnx.close()
+    return jsonify(server="master", dns=master_private_dns, result=result), 200
 
-    # Get workers (slaves) ping time
-    for slave in slaves_ip:
-        cnx_repsonses[slave] = ping(slave).rtt_avg_ms
+# Redirect random select queries to a random slave instance
+@app.route("/random", methods=["GET"])
+def random_get():
+    request_data = request.get_json()
+    query = request_data['query']
+    target_dns = random.choice(slaves_dns)
+    cnx = mysql_cnx(target_dns)
+    result = select(cnx, query)
+    cnx.close()
+    return jsonify(server="slave", dns=target_dns, result=result), 200
 
-    # Get the min between collected ping time
-    best_cnx = min(cnx_repsonses, key=cnx_repsonses.get)
+# Redirect custom select queries to the best instance
+@app.route("/custom", methods=["GET"])
+def custom_get():
+    request_data = request.get_json()
+    query = request_data['query']
+    target_dns = best_cnx_target()
+    cnx = mysql_cnx(target_dns)
+    result = select(cnx, query)
+    cnx.close()
+    if target_dns == master_private_dns:
+        server = "master"
+    else:
+        server = "slave"
+    return jsonify(server=server, dns=target_dns, result=result), 200
 
-    return str(best_cnx), cnx_repsonses[best_cnx]
-
+if __name__ == "__main__":
+    app.run(debug=False, host="0.0.0.0", port=8080)
 EOL
+
+# Create requirements file:
+cat <<EOL > /home/ubuntu/proxy/requirements.txt
+flask
+argparse
+mysql.connector
+pythonping
+random
+EOL
+
+# Create a dockerfile:
+cat <<EOL > /home/ubuntu/proxy/Dockerfile
+# syntax=docker/dockerfile:1
+FROM python:3.9
+WORKDIR /code
+ENV FLASK_APP=flask_app.py
+ENV FLASK_RUN_HOST=0.0.0.0
+RUN pip install --upgrade pip
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+EXPOSE 5000
+COPY . .
+CMD ["flask", "run"]
+EOL
+
+# Creating the YAML compose file having the services of the two containers :
+cat <<EOL > /home/ubuntu/proxy/compose.yaml
+services:
+  webapp:
+    build: .
+    ports:
+      - "5000:5000"
+EOL
+
+# Lanching the docker compose containing the 2 containers:
+sudo docker compose up -d
