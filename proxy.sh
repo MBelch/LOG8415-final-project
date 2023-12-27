@@ -28,98 +28,90 @@ import mysql.connector
 from pythonping import ping
 from flask import Flask, jsonify, request
 
-
 app = Flask(__name__)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("master_private_dns", help="Master's priavte dns")
-parser.add_argument("--slaves_dns", nargs="+", help="List of private slaves dns")
+parser.add_argument("master_dns", help="Master's dns")
+parser.add_argument("--workers_dns", nargs="+", help="Workers' dns")
 args = parser.parse_args()
+master_dns = args.master_dns
+workers_dns = args.workers_dns
 
-master_private_dns = args.master_private_dns
-slaves_dns = args.slaves_dns
-
-# Connect to mysql database
-def mysql_cnx(target_dns):
+# Connexion to mysql method:
+def mysql_connexion(host):
     try :
-        cnx = mysql.connector.connect(user='root',
-                                    host=target_dns,
-                                    database='sakila')
-        print("Connected to database at: " + target_dns)
-        return cnx
-    except mysql.connector.Error as err:
-        print("Connection to database error: {}".format(err))
+        connexion = mysql.connector.connect(user='root', host=host, database='sakila')
+        print("Connexion established : ", host)
+        return connexion
+    except mysql.connector.Error as e:
+        print(e)
 
-# Find best connection target based on ping
-def best_cnx_target():
-    ping_responses = {}
-    ping_responses[master_private_dns] = ping(master_private_dns).rtt_avg_ms
-    for target_dns in slaves_dns:
-        ping_responses[target_dns] = ping(target_dns).rtt_avg_ms
+# Get the lowest time response based on ping:
+def lwst_ping_responce():
+    pr = {}
+    pr[master_dns] = ping(master_dns).rtt_avg_ms
+    for e in workers_dns:
+        pr[e] = ping(e).rtt_avg_ms
+    lwst_ping_responce = min(pr, key=pr.get)
+    return lwst_ping_responce
 
-    best_cnx_target = min(ping_responses, key=ping_responses.get)
-    return best_cnx_target
-
-# Insert query
-def insert(mysql_cnx, query):
-    cursor = mysql_cnx.cursor()
+# Direct hit for insert querries to the master node:
+@app.route("/direct", methods=["POST"])
+def direct_insert():
+    request_data = request.get_json()
+    query = request_data['query']
+    c = mysql_connexion(master_dns)
+    cursor = mysql_connexion.cursor()
     cursor.execute(query)
-    mysql_cnx.commit()
+    mysql_connexion.commit()
     cursor.close()
+    c.close()
+    return jsonify(message="Query POST to master successfull"), 201
 
-# Select query
-def select(mysql_cnx, query):
-    cursor = mysql_cnx.cursor()
+# Direct hit for select queries to the master node:
+@app.route("/direct", methods=["GET"])
+def direct_select():
+    request_data = request.get_json()
+    query = request_data['query']
+    c = mysql_connexion(master_dns)
+    cursor = mysql_connexion.cursor()
     cursor.execute(query)
     result = cursor.fetchall()
     cursor.close()
-    return result
+    c.close()
+    return jsonify(server="master", dns=master_dns, result=result), 200
 
-# Redirect direct insert queries to the master instance
-@app.route("/direct", methods=["POST"])
-def direct_post():
-    request_data = request.get_json()
-    query = request_data['query']
-    cnx = mysql_cnx(master_private_dns)
-    insert(cnx, query)
-    cnx.close()
-    return jsonify(message="Query POST to master successfull"), 201
-
-# Redirect direct select queries to the master instance
-@app.route("/direct", methods=["GET"])
-def direct_get():
-    request_data = request.get_json()
-    query = request_data['query']
-    cnx = mysql_cnx(master_private_dns)
-    result = select(cnx, query)
-    cnx.close()
-    return jsonify(server="master", dns=master_private_dns, result=result), 200
-
-# Redirect random select queries to a random slave instance
+# Random method of the proxy: 
 @app.route("/random", methods=["GET"])
-def random_get():
+def random_select():
     request_data = request.get_json()
     query = request_data['query']
-    target_dns = random.choice(slaves_dns)
-    cnx = mysql_cnx(target_dns)
-    result = select(cnx, query)
-    cnx.close()
-    return jsonify(server="slave", dns=target_dns, result=result), 200
+    w_node = random.choice(workers_dns)
+    c = mysql_connexion(w_node)
+    cursor = mysql_connexion.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    cursor.close()
+    c.close()
+    return jsonify(server="slave", dns=w_node, result=result), 200
 
-# Redirect custom select queries to the best instance
+# Custom method of the proxy:
 @app.route("/custom", methods=["GET"])
-def custom_get():
+def custom_select():
     request_data = request.get_json()
     query = request_data['query']
-    target_dns = best_cnx_target()
-    cnx = mysql_cnx(target_dns)
-    result = select(cnx, query)
-    cnx.close()
-    if target_dns == master_private_dns:
+    w_node = lwst_ping_responce()
+    c = mysql_connexion(w_node)
+    cursor = mysql_connexion.cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    cursor.close()
+    c.close()
+    if w_node == master_dns:
         server = "master"
     else:
         server = "slave"
-    return jsonify(server=server, dns=target_dns, result=result), 200
+    return jsonify(server=server, dns=w_node, result=result), 200
 
 if __name__ == "__main__":
     app.run(debug=False, host="0.0.0.0", port=8080)
