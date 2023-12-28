@@ -49,7 +49,7 @@ if __name__ == '__main__':
     #--------------------------------------Try create a security group with all traffic inbouded--------------------------------
     # We added the ip address of the proxy since it's the only instance that sends requests:
     try:
-        security_group_id = create_security_group("All traffic sec_group","lab1_security_group",vpc_id,ec2_serviceresource,"54.89.126.22")  
+        security_group_id = create_security_group("Proxy traffic sec_group","security_group_cluster",vpc_id,ec2_serviceresource,"54.89.126.22")  
     
     except :
         #Get the standard security group from the default VPC :
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     # Secrity group for the proxy :
     # The proxy is supposed to get the traffic only from the trusted host from the gatekeeper :
     try:
-        pxy_sg_id = create_security_group("All traffic sec_group","lab1_security_group",vpc_id,ec2_serviceresource,"50.65.104.65")  
+        pxy_sg_id = create_security_group("Gatekeeper traffic sec_group","security_group_pxy",vpc_id,ec2_serviceresource,"50.65.104.65")  
     
     except :
         #Get the standard security group from the default VPC :

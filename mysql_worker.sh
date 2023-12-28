@@ -56,9 +56,3 @@ sudo tar -xvzf sakila-db.tar.gz
 # Change dir to the Sakila directory:
 cd /opt/mysqlcluster/sakila/sakila-db
 
-# Sakila config:
-sudo mysql -Bse "SOURCE sakila-schema.sql"
-sudo mysql -Bse "SOURCE sakila-data.sql"
-
-# Install sysbench:
-sudo apt-get -y install sysbench
