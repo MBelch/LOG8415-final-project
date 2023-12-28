@@ -154,31 +154,32 @@ if __name__ == '__main__':
 
     # Create 3 intances with t2.micro as workers:
     Availabilityzons_Cluster1=['us-east-1a','us-east-1b','us-east-1a','us-east-1b','us-east-1a']
-    instance_type = "t2.micro"
+    instance_type_1 = "t2.micro"
+    instance_type_2 = "t2.large"
 
     print("\n Creating instances : the master node ")
     # Creation of the manager/master instance:
-    mng.t2 = create_instance_ec2(1,ami_id, instance_type,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"manager_node",ud_mng)
+    mng.t2 = create_instance_ec2(1,ami_id, instance_type_1,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"manager_node",ud_mng)
     # Waiting time for the setup of manager:
     time.sleep(300)
 
     print("\n Creating instances : the workers ")
     # Creation of the 3 workers:
-    workers_t2= create_instance_ec2(3,ami_id, instance_type,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"worker",ud_worker)
+    workers_t2= create_instance_ec2(3,ami_id, instance_type_1,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"worker",ud_worker)
     # Waiting time for the creation of the workers
     time.sleep(330)
     
     print("\n Creating instances : standalone_server ")
     # Creation of the standlone_server:
-    std_alone.t2 = create_instance_ec2(1,ami_id, instance_type,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"standlone",ud_std)
+    std_alone.t2 = create_instance_ec2(1,ami_id, instance_type_1,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"standlone",ud_std)
 
     print("\n Creating instances : proxy ")
     # Creation of the proxy:
-    proxy.t2 = create_instance_ec2(1,ami_id, instance_type,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"proxy",ud_pxy)
+    proxy.t2 = create_instance_ec2(1,ami_id, instance_type_2,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"proxy",ud_pxy)
 
     print("\n Creating instances : gatekeeper ")
     # Creation of the gatekeeper:
-    gk.t2 = create_instance_ec2(1,ami_id, instance_type,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"standlone",ud_gk)
+    gk.t2 = create_instance_ec2(1,ami_id, instance_type_2,key_pair_name,ec2_serviceresource,security_group_id,Availabilityzons_Cluster1,"standlone",ud_gk)
 
     print("\n all instances created successfully")
     
