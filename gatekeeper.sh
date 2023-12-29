@@ -52,7 +52,7 @@ def forward_to_proxy(request):
         return response.json()
 
     except requests.RequestException as e:
-        return {"error": f"Proxy request failed: {str(e)}"}
+        return {"error": "Proxy request failed:,"e}
 
 @app.route('/check_request', methods=['POST'])
 def check_request():
@@ -85,10 +85,7 @@ EOL
 # Create requirements file:
 cat <<EOL > /home/ubuntu/gatekeeper/requirements.txt
 flask
-argparse
-mysql.connector
-pythonping
-random
+requests
 EOL
 
 # Create a dockerfile:
