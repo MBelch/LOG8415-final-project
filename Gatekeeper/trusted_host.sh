@@ -102,7 +102,7 @@ COPY . .
 CMD ["flask", "run"]
 EOL
 
-# Creating the YAML compose file having the services of the two containers :
+# Creating the YAML compose file having the service of the Trusted host container:
 cat <<EOL > /home/ubuntu/trusted_host/compose.yaml
 services:
   webapp:
@@ -111,5 +111,6 @@ services:
       - "5000:5000"
 EOL
 
-# Lanching the docker compose containing container:
+# Lanching the docker compose containing container of the trusted host:
+# Flask app
 sudo docker compose up -d
