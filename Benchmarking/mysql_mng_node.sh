@@ -38,6 +38,8 @@ basedir=/opt/mysqlcluster/home/mysqlc
 port=3306
 EOL
 
+# Setupe the config file of the master-slave architecture so we pass the
+# IP adresses of the salves and the master:
 cat <<EOL > /opt/mysqlcluster/deploy/config.ini
 [ndb_mgmd]
 hostname=18.234.232.119

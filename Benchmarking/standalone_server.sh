@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# For a full update, we passed '-y' in order to automate the update
+# in order to not pass the '-y' manually
 sudo apt-get -y update
 
 # Install mysql-server:
@@ -30,7 +32,7 @@ sudo mysql -u root --password=root -e "USE sakila"
 # Install sysbench:
 sudo apt-get -y install sysbench
 
-# The benchmar on the stand-alone mysql-server:
+# The benchmark on the stand-alone mysql-server:
 sudo sysbench oltp_read_write --table-size=100000 --mysql-db=sakila --mysql-user=root --mysql-password=root prepare
 sudo sysbench oltp_read_write --table-size=100000 --threads=6 --max-time=60 --max-requests=0 --mysql-db=sakila --mysql-user=root --mysql-password=root  run > /home/ubuntu/results.txt
 sudo sysbench oltp_read_write --mysql-db=sakila --mysql-user=root --mysql-password=root cleanup
