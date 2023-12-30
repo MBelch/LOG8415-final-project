@@ -39,8 +39,10 @@ proxy_address = ''
 proxy_key_path = path+'/final_project_keypair.pem'
 proxy_username = 'ubuntu'
 
-
 def forward_request_to_trusted_host(request_data):
+"Bellow the function that forwards the request/query to the proxy\
+ with secured SSH connection and sending the request using\
+ this protocol, the private key is the keypair created in the setup"
     try:
         # Create a SSH connection to the proxy using its IP address:
         ssh_proxy = paramiko.SSHClient()
@@ -57,12 +59,16 @@ def forward_request_to_trusted_host(request_data):
             print(f"Error while forwarding request: {stderr.read()}")
         else:
             print('====> Request forwarded to trusted host')
+    # Returning the catched exception and show it in the output        
     except Exception as e:
         print("Error connecting to the proxy:", e)
 
 
 @app.route('/receive_request', methods=['POST'])
 def receive_request():
+    "The function for the flask app of the trusted host that gets the request\
+    from the trusted host and forwarding it to the proxy. If there is an exception\
+    it prints it in the output for further logging management"
     try:
         request_data = request.get_data(as_text=True)
         forward_request_to_trusted_host(request_data)
@@ -71,7 +77,7 @@ def receive_request():
         print("Error processing request:", e)
         return 'Internal Server Error', 500
 
-
+# Main program of the trusted host Flask app:
 if __name__ == '__main__':
     # Read the proxy mode given in the SSH command:
     mode = sys.argv[1]
