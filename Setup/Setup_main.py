@@ -46,7 +46,7 @@ if __name__ == '__main__':
     vpc_id = default_vpc_desc[0].get('VpcId')
 
 
-    #--------------------------------------Try create a security group with all traffic inbouded--------------------------------
+    #--------------------------------------Try create a security group for the cluster traffic inbouded--------------------------------
     # We added the ip address of the proxy since it's the only instance that sends requests:
     try:
         security_group_id = create_security_group("Proxy traffic sec_group","security_group_cluster",vpc_id,ec2_serviceresource,"54.89.126.22")  
@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
         security_group_id = (sg_dict.get("SecurityGroups")[0]).get("GroupId")
 
-    #-----------------------Try create a security group with all traffic inbouded for proxy--------------------------------
+    #-----------------------Try create a security group with traffic from gatekeeper-trusted host inbouded for proxy--------------------------------
     
     # Secrity group for the proxy :
     # The proxy is supposed to get the traffic only from the trusted host from the gatekeeper :
