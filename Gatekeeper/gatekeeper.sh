@@ -34,8 +34,10 @@ trusted_hosts = []
 private_proxy_ip = ""
 proxy_port = 5000
 
-# Method that forwards requests to proxy:
 def forward_to_proxy(request):
+    #Bellow the method that forwards the requests to the trusted host and then to the
+    #proxy this function permits the checking of the request either it's from 
+    # a trusted host or from a malicious host from it's path pattern
     try:
         # Get the type of the request as it's direct, random or customized:
         rt = request_data.get('type')
@@ -56,6 +58,9 @@ def forward_to_proxy(request):
 
 @app.route('/check_request', methods=['POST'])
 def check_request():
+    # Function that does the first IP address checking of the trusted host
+    # of the request received from the client and then forwared it the proxy before
+    # a second checking form the trusted host whith SSH conection
     try:
         
         request = request.get_json()
@@ -72,11 +77,11 @@ def check_request():
         else:
             # Block the request
             return jsonify({"status": "Access denied. Host not trusted."}), 403
-
+    # Print the exeception in the output:
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
+# Main program of the gatekeeper flask app:
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
 
@@ -103,7 +108,7 @@ COPY . .
 CMD ["flask", "run"]
 EOL
 
-# Creating the YAML compose file having the services of the two containers :
+# Creating the YAML compose file having the service of the gatekeeper falsk app container:
 cat <<EOL > /home/ubuntu/gatekeeper/compose.yaml
 services:
   webapp:
@@ -112,5 +117,5 @@ services:
       - "5000:5000"
 EOL
 
-# Lanching the docker compose containing container:
+# Lanching the docker compose containing gatekeeper container:
 sudo docker compose up -d
