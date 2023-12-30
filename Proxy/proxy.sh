@@ -22,6 +22,7 @@ mkdir /home/ubuntu/proxy && cd /home/ubuntu/proxy
 
 # Create the proxy Flask app:
 cat <<EOL > /home/ubuntu/proxy/proxy.py
+# Import the needed libraries:
 import argparse
 import random
 import mysql.connector
@@ -31,12 +32,9 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("master_dns", help="Master's dns")
-parser.add_argument("--workers_dns", nargs="+", help="Workers' dns")
-args = parser.parse_args()
-master_dns = args.master_dns
-workers_dns = args.workers_dns
+# passing the ip addresses of the master and the workers:
+master_dns = ""
+workers_dns = []
 
 # Connexion to mysql method:
 def mysql_connexion(host):
@@ -56,7 +54,7 @@ def lwst_ping_responce():
     lwst_ping_responce = min(pr, key=pr.get)
     return lwst_ping_responce
 
-# Direct hit for insert querries to the master node:
+# Direct hit for insert SQL querries to the master node:
 @app.route("/direct", methods=["POST"])
 def direct_insert():
     request_data = request.get_json()
@@ -69,7 +67,7 @@ def direct_insert():
     c.close()
     return jsonify(message="Query POST to master successfull"), 201
 
-# Direct hit for select queries to the master node:
+# Direct hit for select SQL queries to the master node:
 @app.route("/direct", methods=["GET"])
 def direct_select():
     request_data = request.get_json()
@@ -82,7 +80,7 @@ def direct_select():
     c.close()
     return jsonify(server="master", dns=master_dns, result=result), 200
 
-# Random method of the proxy: 
+# Random method of the proxy that send a SQL select query withe the random implementation:
 @app.route("/random", methods=["GET"])
 def random_select():
     request_data = request.get_json()
@@ -96,7 +94,7 @@ def random_select():
     c.close()
     return jsonify(server="worker", dns=w_node, result=result), 200
 
-# Custom method of the proxy:
+# Custom method of the proxy that sends the SQL query with the custom implementation:
 @app.route("/custom", methods=["GET"])
 def custom_select():
     request_data = request.get_json()
@@ -114,8 +112,9 @@ def custom_select():
         server = "worker"
     return jsonify(server=server, dns=w_node, result=result), 200
 
+# Main program of the proxy flask app:
 if __name__ == "__main__":
-    app.run(debug=False, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="0.0.0.0", port=8080)
 EOL
 
 # Create requirements file:
@@ -142,7 +141,7 @@ COPY . .
 CMD ["flask", "run"]
 EOL
 
-# Creating the YAML compose file having the services of the two containers :
+# Creating the YAML compose file having the service of the proxy flask app container :
 cat <<EOL > /home/ubuntu/proxy/compose.yaml
 services:
   webapp:
@@ -151,5 +150,5 @@ services:
       - "5000:5000"
 EOL
 
-# Lanching the docker compose containing the container:
+# Lanching the docker compose containing the proxy flask app container:
 sudo docker compose up -d
